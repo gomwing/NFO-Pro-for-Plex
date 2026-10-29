@@ -1254,10 +1254,12 @@ class PlexNFOPro(QMainWindow):
                 self.set_all_widget_rows_hidden()
         
             ## update the filtered count
-            self.update_main_rows_count(len(self.library_filters[filter_type]))
-        
+            try:
+                self.update_main_rows_count(len(self.library_filters[filter_type]))
+            except KeyError:
+                #print(self.library_filters[filter_type])
         ## force a repaint
-        self.mainUI.mainScrollArea.viewport().update()
+                self.mainUI.mainScrollArea.viewport().update()
 
     def create_filter_combo_box(self):
         self.clear_filter_combo_items()
