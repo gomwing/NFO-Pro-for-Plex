@@ -11,6 +11,7 @@ from plexapi.video import Episode, Show, Season, Movie
 from plexapi.utils import toJson
 from requests import RequestException
 from includes.file_manager import PlexNFOFileManager
+from includes.backup_paths import library_mappings
 
 class PlexNFOPlexAPIManager(QObject):
     
@@ -204,7 +205,7 @@ class PlexNFOPlexAPIManager(QObject):
             location_data = []
             for location in video.locations:
                 location_data.append(location)
-                #return json.loads(toJson(location))
+            if location_data:
                 return {"locations": location_data}
             return {}
     
@@ -258,7 +259,7 @@ class PlexNFOPlexAPIManager(QObject):
                 
             elif item_data["type"] == "show":
                 item_data["seasons"] = self.get_seasons(video)
-                metadata = item_data | self.get_actors(video) | self.get_directors(video) | self.get_guids(video) | self.get_labels(video) | self.get_ratings(video) | self.get_writers(video) | self.get_countries(video) | self.get_genres(video) | self.get_collections(video) | self.get_images(video)
+                metadata = item_data | self.get_locations(video) | self.get_actors(video) | self.get_directors(video) | self.get_guids(video) | self.get_labels(video) | self.get_ratings(video) | self.get_writers(video) | self.get_countries(video) | self.get_genres(video) | self.get_collections(video) | self.get_images(video)
             
             metadata["dash_url"] = self.get_web_dashboard_url(video) ## get the dashboard url
             return metadata
@@ -286,7 +287,7 @@ class PlexNFOPlexAPIManager(QObject):
                     
                 elif item_data["type"] == "show":
                     item_data["seasons"] = self.get_seasons(video)
-                    metadata = item_data | self.get_actors(video) | self.get_directors(video) | self.get_guids(video) | self.get_labels(video) | self.get_ratings(video) | self.get_writers(video) | self.get_countries(video) | self.get_genres(video) | self.get_collections(video) | self.get_images(video)
+                    metadata = item_data | self.get_locations(video) | self.get_actors(video) | self.get_directors(video) | self.get_guids(video) | self.get_labels(video) | self.get_ratings(video) | self.get_writers(video) | self.get_countries(video) | self.get_genres(video) | self.get_collections(video) | self.get_images(video)
                 
                 metadata["dash_url"] = self.get_web_dashboard_url(video) ## get the dashboard url
                 
@@ -303,12 +304,26 @@ class PlexNFOPlexAPIManager(QObject):
         p_sections['show'] = []
         ## get the sections from the server
         utsections = self.serverConnection.library.sections()
+        settings = self.fileManager.load_settings() or {}
+        backup = settings.get("mirrorLibraryFolders", False)
+        roots = library_mappings(settings["backupRoot"], utsections) if backup else {}
+        self.local_folders_split = {}
         for utsection in utsections:
+            if utsection.type not in ("movie", "show"):
+                continue
             sectn_json = json.loads( toJson( utsection ) )
             location_list = json.loads( toJson( utsection.locations ) )
             total_items = {"total_items": json.loads( toJson(utsection.totalViewSize(sectn_json["type"]) ) ) }
             locations_json = {"locations": location_list }
-            locations_match = self.locations_match(sectn_json["type"], location_list)
+            if backup:
+                locations_match = []
+                for location in location_list:
+                    source = location.replace("\\", "/").rstrip("/")
+                    target = roots[source]
+                    os.makedirs(target, exist_ok=True)
+                    locations_match.append(source + ":||:" + target)
+            else:
+                locations_match = self.locations_match(sectn_json["type"], location_list)
             self.logger("Found Library: " + sectn_json["title"])
             if locations_match:
                 locations_match = {"location_match": locations_match}

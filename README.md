@@ -142,3 +142,11 @@ This will open the file in your default program for that file type.
 
 <img width="756" height="723" alt="7-2-instantly-open-file" src="https://github.com/user-attachments/assets/b0f1cff9-490a-403f-9a06-baf4a63e27ab" />
 
+
+## 로컬 폴더 구조 백업
+
+Settings의 **Plex 폴더 구조 백업**에서 저장 위치를 선택하고 옵션을 켭니다.
+Plex 주소와 토큰을 저장한 뒤 **Scan → Download All**을 실행합니다.
+`/volume1/Movies/작품/영상.mkv`는 `<저장 위치>/Movies/작품/`에 NFO와 포스터를 저장합니다. 영상 파일은 복사하거나 빈 파일로 만들지 않습니다.
+TV 시즌·에피소드 NFO와 시즌 포스터도 활성화됩니다. 같은 이름의 라이브러리 루트가 여러 개면 경로 해시를 덧붙여 분리합니다. Windows에서 사용할 수 없는 이름도 변환합니다.
+백업 모드에서는 기존 TV/Movies Folders 매칭 설정이 필요하지 않습니다. 저장 위치 또는 모드를 바꾼 뒤 반드시 다시 Scan을 실행하세요. 백업 모드의 Scan은 경로 갱신을 위해 모든 작품을 다시 조회합니다. 기존 파일의 덮어쓰기 옵션은 그대로 적용됩니다.

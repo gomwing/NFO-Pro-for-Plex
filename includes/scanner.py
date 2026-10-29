@@ -15,6 +15,7 @@ import time
 import json
 import requests
 import logging
+from includes.backup_paths import mapped_path
 
 class Scanner(QObject):
     finished = pyqtSignal()             ## send back task complete
@@ -113,7 +114,7 @@ class Scanner(QObject):
                                     last_percent = percent
                                     progress_callback(percent)
                         
-                        for local_folder in section["location_match"]:
+                        for local_folder in ([] if self.settings.get_settings().get("mirrorLibraryFolders") else section["location_match"]):
                             local_folder = str(local_folder.split(":||:")[1])
                             self.local_files[section["key"]].extend(
                                 self.fileManager.file_scan(local_folder, self.fileManager.accepted_extensions("Video"), item_callback=on_file_found)
@@ -137,7 +138,7 @@ class Scanner(QObject):
                         self.log("Matching Local Folders: "+ section["title"])
                         self.local_folders[section["key"]] = section["location_match"]
                         self.local_files[section["key"]] = []
-                        for local_folder in section["location_match"]:
+                        for local_folder in ([] if self.settings.get_settings().get("mirrorLibraryFolders") else section["location_match"]):
                             local_folder = str(local_folder.split(":||:")[1])
                             self.log(f"Scanning {local_folder} for Files..")
                             self.local_files[section["key"]].extend(
@@ -195,7 +196,7 @@ class Scanner(QObject):
     
     def scan_section_items(self, library_id):
         self.scannerSwitchCacheLibrary.emit(library_id) ## switch the cache library on the thumbnail worker
-        if self.cache_clear:
+        if self.cache_clear or self.settings.get_settings().get("mirrorLibraryFolders"):
             exists_il = [] ## overwrites all existing entries in cache
             self.log("Clear Cache selected, completing a full Server scan..")
         else:
@@ -223,6 +224,11 @@ class Scanner(QObject):
         return None
     
     def check_for_local_file_to_retrieve_local_folder(self, vfile, librarySectionID, known_files=None):
+        if self.settings.get_settings().get("mirrorLibraryFolders"):
+            target = mapped_path(vfile, self.local_folders.get(librarySectionID, []))
+            if target:
+                os.makedirs(os.path.dirname(target), exist_ok=True)
+            return target
         ## just run a straight match first
         if known_files is None:
             ## fast path: translate the Plex path and check it directly
@@ -440,6 +446,9 @@ class Scanner(QObject):
         return metadata
         
     def save_scanned_item(self, key, metadata, known_files=None):
+        if self.settings.get_settings().get("mirrorLibraryFolders"):
+            metadata["local_files"] = []
+            metadata["local_folders"] = []
         if metadata["type"] == "movie":                   
             file = metadata.get("file", False)
             
@@ -498,6 +507,15 @@ class Scanner(QObject):
                                     metadata["seasons"][season_no]["local_folders"].append( season_folder )                                
                                 ## work out the show folders
                                 show_folder = self.fileManager.get_path(season_folder)
+                                if self.settings.get_settings().get("mirrorLibraryFolders"):
+                                    for source in metadata.get("locations", []):
+                                        candidate = mapped_path(source, self.local_folders.get(metadata["librarySectionID"], []))
+                                        if candidate and os.path.commonpath([candidate, match]) == candidate:
+                                            show_folder = candidate
+                                            break
+                                    episode.setdefault("local_locations", [])
+                                    if match not in episode["local_locations"]:
+                                        episode["local_locations"].append(match)
                                 if show_folder not in metadata["local_folders"]:
                                     metadata["local_folders"].append( show_folder )                                
                                 ## we have managed to match the episode file so we can save the data
@@ -618,7 +636,7 @@ class ScannerWorker(QObject):
             self.progress.emit( percent )
     
     def clear_cache(self):
-        if self.cache_clear:
+        if self.cache_clear or self.settings.get_settings().get("mirrorLibraryFolders"):
             self.log("Clearing Cache Files:", None, "header")
             self._scanner.clear_cache()
             self.log(f"All Cache Files Removed...")
@@ -741,6 +759,11 @@ class ScannerWorker(QObject):
             item = self.kargs["item"]
             iwid = self.kargs["iwid"]
             settings = self.settings.store
+            if settings.get("mirrorLibraryFolders"):
+                self._scanner.scan_library_sections()
+                item = self._scanner.scan_single_item(item["librarySectionID"], item["guid"])
+                if not item or not item.get("local_folders"):
+                    raise ValueError("No mapped backup folder. Run Scan and check Plex file paths.")
             
             web_urls = {}
             for image in item["images"]:
@@ -833,7 +856,8 @@ class ScannerWorker(QObject):
                     if settings.get("downloadSeasonNFO") == True:
                         if season.get("local_folders"):
                             for season_local_folder in season.get("local_folders"):
-                                self._scanner.generate_season_nfo_file(season, season_local_folder) ## no actors in season info
+                                if settings.get("overwriteSeasonNFO") or not os.path.isfile(os.path.join(season_local_folder, "season.nfo")):
+                                    self._scanner.generate_season_nfo_file(season, season_local_folder)
                     
                     ## find the season web urls for artwork
                     for image in season["images"]:
@@ -871,6 +895,17 @@ class ScannerWorker(QObject):
                     ## now run through the episodes generating the nfo files
                     if settings.get("downloadEpisodeNFO") == True or settings.get("downloadEpisodeThumb") == True:
                         for episode_no, episode in season["episodes"].items():
+                            if settings.get("mirrorLibraryFolders"):
+                                for local_file in episode.get("local_locations", []):
+                                    folder = os.path.dirname(local_file)
+                                    stem = os.path.splitext(os.path.basename(local_file))[0]
+                                    if settings.get("downloadEpisodeNFO") and (settings.get("overwriteEpisodeNFO") or not os.path.isfile(os.path.join(folder, stem + ".nfo"))):
+                                        self._scanner.generate_episode_nfo_file(episode, folder, stem, settings.get("saveActors", False))
+                                    if settings.get("downloadEpisodeThumb"):
+                                        for image in episode.get("images", []):
+                                            if image.get("type") == "snapshot" and (settings.get("overwriteEpisodeThumb") or not os.path.isfile(os.path.join(folder, stem + ".jpg"))):
+                                                self._scanner.download_media_file(folder, image["web_url"], stem, "thumb")
+                                continue
                             if settings.get("downloadEpisodeNFO") == True:
                                 local_ep_nfo = item.get("local_nfo", False)
                                 local_ep_nfo_folder = item.get("local_nfo_folder", False)

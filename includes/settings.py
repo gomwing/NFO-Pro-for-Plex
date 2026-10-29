@@ -2,6 +2,7 @@ from PyQt6 import QtWidgets, sip
 from PyQt6.QtWidgets import QWidget
 
 import requests
+import os
 import re, string
 import ui.settings as settingsUIDialog
 import ui.folder_widget as folderWidget
@@ -31,6 +32,27 @@ class PlexNFOProSettings():
         self.settingsUI = settingsUIDialog.Ui_Settings()
         self.settingsDialog = QtWidgets.QDialog()
         self.settingsUI.setupUi(self.settingsDialog)
+        group = QtWidgets.QGroupBox("Plex 폴더 구조 백업")
+        layout = QtWidgets.QVBoxLayout(group)
+        self.mirrorCheck = QtWidgets.QCheckBox("영상 없이 라이브러리 폴더 생성 및 NFO·포스터 저장")
+        layout.addWidget(self.mirrorCheck)
+        row = QtWidgets.QHBoxLayout()
+        self.backupRootEdit = QtWidgets.QLineEdit()
+        self.backupRootEdit.setPlaceholderText("로컬 백업 저장 위치")
+        browse = QtWidgets.QPushButton("폴더 선택")
+        def choose_backup():
+            folder = self.select_folder(self.settingsDialog)
+            if folder:
+                self.backupRootEdit.setText(folder)
+                self.mirrorCheck.setChecked(True)
+        browse.clicked.connect(choose_backup)
+        row.addWidget(self.backupRootEdit)
+        row.addWidget(browse)
+        layout.addLayout(row)
+        label = QtWidgets.QLabel("예: /volume1/Movies/작품 → 선택한 폴더/Movies/작품\n저장 후 Scan → Download All을 실행하세요.")
+        label.setWordWrap(True)
+        layout.addWidget(label)
+        self.settingsUI.verticalLayout.insertWidget(0, group)
         
     def load_folder_widgets_from_settings(self, folder_settings):
         self.clear_folders_from_settings() ## first clear the folders to reload them again
@@ -62,6 +84,8 @@ class PlexNFOProSettings():
     def load_settings(self):
         settings = self.get_settings()
         if settings:
+            self.mirrorCheck.setChecked(settings.get("mirrorLibraryFolders", False))
+            self.backupRootEdit.setText(settings.get("backupRoot", ""))
             self.settingsUI.plexURLEdit.setText( settings.get('plexURL') )
             self.settingsUI.plexTokenEdit.setText( settings.get('plexToken') )
             
@@ -117,7 +141,13 @@ class PlexNFOProSettings():
             self.load_folder_widgets_from_settings( settings.get('folders') )
     
     def save_settings(self):
-        #print("Saving Settings")
+        backup_root = self.backupRootEdit.text().strip()
+        if self.mirrorCheck.isChecked() and (not backup_root or not os.path.isabs(backup_root)):
+            QtWidgets.QMessageBox.warning(self.settingsDialog, "백업 위치", "백업할 로컬 폴더의 절대 경로를 선택하세요.")
+            return
+        if self.mirrorCheck.isChecked():
+            for name in ("downloadNFO", "downloadPoster", "downloadSeasonNFO", "downloadSeasonPoster", "downloadEpisodeNFO"):
+                getattr(self.settingsUI, name + "CheckBox").setChecked(True)
         plexURL = self.settingsUI.plexURLEdit.text()
         plexToken = self.settingsUI.plexTokenEdit.text()
         
@@ -163,6 +193,8 @@ class PlexNFOProSettings():
         saveActors = self.settingsUI.saveActorsCheckBox.isChecked()
         
         save_data = {
+            "mirrorLibraryFolders": self.mirrorCheck.isChecked(),
+            "backupRoot": backup_root,
             "plexURL": f"{plexURL}",
             "plexToken": f"{plexToken}",
             "downloadNFO": downloadNFO,

@@ -31,7 +31,7 @@ class PlexNFOGenerator():
         if int(movie.get("viewCount") or 0) > 0 or movie.get("lastViewedAt"):
             xmlET.SubElement(root, "playcount").text = str(movie.get("viewCount"))
         
-        if int(movie.get("viewCount")) > 0 or movie.get("lastViewedAt"):
+        if int(movie.get("viewCount") or 0) > 0 or movie.get("lastViewedAt"):
             xmlET.SubElement(root, "watched").text = "true"
         
         if movie.get("summary"):
