@@ -320,7 +320,11 @@ class PlexNFOPlexAPIManager(QObject):
             
             #print(sectn)
             self.logger("Library: " + sectn_json["title"] + " added to Library Menu..")
-            p_sections[ sectn["type"] ].append(sectn)
+            try:
+                p_sections[ sectn["type"] ].append(sectn)
+            except KeyError:
+                print(sectn["type"])
+            #p_sections.get( sectn["type"], ' ' ).append(sectn)
         
         self.local_folders_split = {} ## unset for the next scan incase options have changed
         return p_sections
