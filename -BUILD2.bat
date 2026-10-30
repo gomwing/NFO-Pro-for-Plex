@@ -1,0 +1,2 @@
+pyinstaller --clean --onefile --hidden-import=plexapi --hidden-import=requests --hidden-import=PyQt6.sip --hidden-import=PyQt6.QtCore --hidden-import=PyQt6.QtGui --hidden-import=PyQt6.QtWidgets app.py --onefile --noconsole --add-data "includes;includes" --add-data "ui;ui" --add-data "images;images" --icon="images/icon.png" --splash="images/splash.jpg" --name "NFO Pro for Plex" --noconfirm 
+pause
