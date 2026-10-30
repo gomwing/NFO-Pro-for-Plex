@@ -16,6 +16,7 @@ import json
 import requests
 import logging
 from includes.backup_paths import mapped_path
+from includes.metadata_identity import ensure_metadata_slug
 
 class Scanner(QObject):
     finished = pyqtSignal()             ## send back task complete
@@ -204,6 +205,7 @@ class Scanner(QObject):
             self.log("Found "+ str(len(exists_il)) + " existing items in the library cache, processing will be skipped..")
         
         def process_item_callback(metadata):
+            ensure_metadata_slug(metadata)
             if metadata["slug"] not in exists_il:
                 self.log("<b><i>New Item:</i></b> " + metadata["title"] + " found downloading data..")
                 self.save_scanned_item(library_id, metadata)
@@ -293,6 +295,7 @@ class Scanner(QObject):
         return season_count - spcount
         
     def check_for_tv_art_locations(self, metadata):        
+        ensure_metadata_slug(metadata)
         ## workout the valid season posters based on number of seasons
         valid_season_posters = self.get_valid_season_poster_names_by_season_count(metadata["seasonCount"])        
 
@@ -446,6 +449,7 @@ class Scanner(QObject):
         return metadata
         
     def save_scanned_item(self, key, metadata, known_files=None):
+        ensure_metadata_slug(metadata)
         if self.settings.get_settings().get("mirrorLibraryFolders"):
             metadata["local_files"] = []
             metadata["local_folders"] = []
